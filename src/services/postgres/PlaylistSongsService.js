@@ -2,15 +2,25 @@ const { Pool } = require('pg');
 const { nanoid } = require('nanoid');
 const InvariantError = require('../../exceptions/InvariantError');
 const NotFoundError = require('../../exceptions/NotFoundError');
-const { mapSongsDBToModel, mapPlaylistsDBToModel } = require('../../utils');
-const AuthorizationError = require('../../exceptions/AuthorizationError');
 
 class PlaylistSongsService {
-  constructor() {
+  constructor(playlistsService) {
     this._pool = new Pool();
+    this._playlistsService = playlistsService;
   }
 
   async addSongToPlaylist({ playlistId, songId }) {
+    const songQuery = {
+      text: 'SELECT id FROM songs WHERE id = $1',
+      values: [songId],
+    };
+
+    const songResult = await this._pool.query(songQuery);
+
+    if (!songResult.rows.length) {
+      throw new NotFoundError('Lagu tidak ditemukan');
+    }
+
     const id = `playlist-song-${nanoid(16)}`;
 
     const query = {
@@ -25,28 +35,28 @@ class PlaylistSongsService {
     }
   }
 
-  async getSongsFromPlaylist(playlistId, owner) {
+  async getSongsFromPlaylist(playlistId) {
     const playlistQuery = {
       text: `
         SELECT 
-          playlists.id AS playlist_id, 
-          playlists.name AS playlist_name, 
-          users.username AS username
+          playlists.id, 
+          playlists.name,
+          users.username 
         FROM playlists
-        INNER JOIN users ON playlists.owner = users.id
-        WHERE playlists.id = $1 AND playlists.owner = $2
+        LEFT JOIN users ON users.id = playlists.owner
+        WHERE playlists.id = $1
       `,
-      values: [playlistId, owner],
+      values: [playlistId],
     };
 
     const songsQuery = {
       text: `
         SELECT 
-          songs.id AS song_id, 
-          songs.title AS song_title, 
-          songs.performer AS song_performer
+          songs.id,
+          songs.title,
+          songs.performer
         FROM playlist_songs
-        INNER JOIN songs ON playlist_songs.song_id = songs.id
+        LEFT JOIN songs ON songs.id = playlist_songs.song_id  
         WHERE playlist_songs.playlist_id = $1
       `,
       values: [playlistId],
@@ -60,8 +70,14 @@ class PlaylistSongsService {
     const songsResult = await this._pool.query(songsQuery);
 
     return {
-      ...mapPlaylistsDBToModel(playlistResult.rows[0]),
-      songs: songsResult.rows.map(mapSongsDBToModel),
+      id: playlistResult.rows[0].id,
+      name: playlistResult.rows[0].name,
+      username: playlistResult.rows[0].username,
+      songs: songsResult.rows.map((song) => ({
+        id: song.id,
+        title: song.title,
+        performer: song.performer,
+      })),
     };
   }
 
@@ -79,16 +95,7 @@ class PlaylistSongsService {
   }
 
   async verifyPlaylistOwner(playlistId, owner) {
-    const query = {
-      text: 'SELECT * FROM playlists WHERE id = $1 AND owner = $2',
-      values: [playlistId, owner],
-    };
-
-    const result = await this._pool.query(query);
-
-    if (!result.rows.length) {
-      throw new AuthorizationError('Anda tidak berhak mengakses playlist ini');
-    }
+    await this._playlistsService.verifyPlaylistAccess(playlistId, owner);
   }
 }
 
