@@ -36,6 +36,7 @@ class AlbumsService {
           albums.id AS album_id, 
           albums.name AS album_name, 
           albums.year AS album_year,
+          albums.cover AS album_cover,
           songs.id AS song_id, 
           songs.title AS song_title,
           songs.performer AS song_performer
@@ -56,6 +57,7 @@ class AlbumsService {
       id: result.rows[0].album_id,
       name: result.rows[0].album_name,
       year: result.rows[0].album_year,
+      coverUrl: result.rows[0].album_cover || null,
     });
 
     album.songs = result.rows
