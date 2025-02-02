@@ -6,6 +6,9 @@ const Jwt = require('@hapi/jwt');
 const Inert = require('@hapi/inert');
 const ClientError = require('./exceptions/ClientError');
 
+// config
+const config = require('./utils/config');
+
 // albums
 const albums = require('./api/albums');
 const AlbumsService = require('./services/postgres/AlbumsService');
@@ -36,7 +39,9 @@ const CollaborationsValidator = require('./validator/collaborations');
 // likes
 const likes = require('./api/likes');
 const UserAlbumLikesService = require('./services/postgres/UserAlbumLikesService');
-const UserAlbumLikesValidator = require('./validator/likes');
+
+// chace
+const CacheService = require('./services/redis/CacheService');
 
 // Exports
 const _exports = require('./api/exports');
@@ -55,6 +60,7 @@ const TokenManager = require('./tokenize/TokenManager');
 const AuthenticationsValidator = require('./validator/authentications');
 
 const init = async () => {
+  const cacheService = new CacheService();
   const collaborationsService = new CollaborationsService();
   const albumsService = new AlbumsService();
   const songsService = new SongsService();
@@ -64,11 +70,11 @@ const init = async () => {
   const playlistSongActivitiesService = new PlaylistSongActivitiesService();
   const authenticationsService = new AuthenticationsService();
   const storageService = new StorageService();
-  const userAlbumLikesService = new UserAlbumLikesService();
+  const userAlbumLikesService = new UserAlbumLikesService(cacheService);
 
   const server = Hapi.server({
-    port: process.env.PORT,
-    host: process.env.HOST,
+    port: config.app.port,
+    host: config.app.host,
     routes: {
       cors: {
         origin: ['*'],
@@ -144,7 +150,6 @@ const init = async () => {
       plugin: likes,
       options: {
         userAlbumLikesService,
-        validator: UserAlbumLikesValidator,
       },
     },
     {
@@ -161,6 +166,7 @@ const init = async () => {
       options: {
         service: ProducerService,
         validator: ExportsValidator,
+        playlistsService,
       },
     },
     {

@@ -4,10 +4,12 @@ const InvariantError = require('../../exceptions/InvariantError');
 const NotFoundError = require('../../exceptions/NotFoundError');
 const { mapAlbumsDBToModel } = require('../../utils');
 const { mapSongsDBToModel } = require('../../utils');
+const config = require('../../utils/config');
 
 class AlbumsService {
   constructor() {
     this._pool = new Pool();
+    this._baseUrl = `http://${config.app.host}:${config.app.port}`;
   }
 
   async addAlbum({ name, year }) {
@@ -57,7 +59,7 @@ class AlbumsService {
       id: result.rows[0].album_id,
       name: result.rows[0].album_name,
       year: result.rows[0].album_year,
-      coverUrl: result.rows[0].album_cover || null,
+      coverUrl: result.rows[0].album_cover ? `${this._baseUrl}/upload/images/${result.rows[0].album_cover}` : null,
     });
 
     album.songs = result.rows

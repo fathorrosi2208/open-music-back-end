@@ -4,8 +4,9 @@ const InvariantError = require('../../exceptions/InvariantError');
 const NotFoundError = require('../../exceptions/NotFoundError');
 
 class UserAlbumLikesService {
-  constructor() {
+  constructor(cacheService) {
     this._pool = new Pool();
+    this._cacheService = cacheService;
   }
 
   async verifyAlbumExist(albumId) {
@@ -43,6 +44,8 @@ class UserAlbumLikesService {
       throw new InvariantError('Gagal menyukai album');
     }
 
+    await this._cacheService.delete(`albumLikes:${albumId}`);
+
     return result.rows[0].id;
   }
 
@@ -58,18 +61,34 @@ class UserAlbumLikesService {
     if (!result.rows.length) {
       throw new InvariantError('Gagal batal menyukai album');
     }
+
+    await this._cacheService.delete(`albumLikes:${albumId}`);
   }
 
   async getAlbumLikes(albumId) {
     await this.verifyAlbumExist(albumId);
 
-    const query = {
-      text: 'SELECT COUNT(*) FROM user_album_likes WHERE album_id = $1',
-      values: [albumId],
-    };
+    let likes;
+    let isCache = false;
+    const cacheKey = `albumLikes:${albumId}`;
 
-    const result = await this._pool.query(query);
-    return Number(result.rows[0].count);
+    try {
+      const result = await this._cacheService.get(cacheKey);
+      likes = Number(result);
+      isCache = true;
+    } catch (error) {
+      const query = {
+        text: 'SELECT COUNT(*) FROM user_album_likes WHERE album_id = $1',
+        values: [albumId],
+      };
+
+      const result = await this._pool.query(query);
+      likes = Number(result.rows[0].count);
+
+      await this._cacheService.set(cacheKey, likes, 1800);
+    }
+
+    return { likes, isCache };
   }
 }
 

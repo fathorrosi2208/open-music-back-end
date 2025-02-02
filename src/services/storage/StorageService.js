@@ -8,7 +8,7 @@ const NotFoundError = require('../../exceptions/NotFoundError');
 class StorageService {
   constructor() {
     this._pool = new Pool();
-    this._folder = path.resolve(__dirname, 'api/uploads/file/images');
+    this._folder = path.resolve(__dirname, '../../api/uploads/file/images');
 
     this.initialize();
   }
